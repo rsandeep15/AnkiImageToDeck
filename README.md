@@ -1,7 +1,7 @@
 Anki Connect + ChatGPT
 
-- Feeds an Image of your vocabulary list to ChatGPT to convert it to word pairs (Korean, English) 
-- Takes the word pairs and use AnkiConnect to generate flash cards
+- Feed an Image of your vocabulary list to ChatGPT to convert it to word pairs (Korean, English) 
+- Take the word pairs and use AnkiConnect to generate flash cards
 
 To run:
 
