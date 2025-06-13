@@ -1,7 +1,6 @@
 import os
 from openai import OpenAI
 import sys
-# import csv
 import json
 import urllib.request
 
@@ -10,17 +9,17 @@ client = OpenAI(
     api_key=os.environ.get("OPENAI_API_KEY"),
 )
 
+
 # Function to create a file with the Files API
 def create_file(file_path):
   with open(file_path, "rb") as file_content:
     result = client.files.create(
         file=file_content,
-        purpose="vision",
+        purpose="assistants",
     )
     return result.id
 
 # Getting the file ID
-
 filename = sys.argv[1]
 file_id = create_file(filename)
 
@@ -29,26 +28,18 @@ response = client.responses.create(
     input=[{
         "role": "user",
         "content": [
-            {"type": "input_text", "text": "Read this image and represent it in CSV format as English Word, Korean Word. Do not prefix your response with anything and just provide the list."},
+            {"type": "input_text", 
+             "text": "Read this pdp and return a list of English Word; Foreign Word. Include the romanized characters next to the foreign word in parenthesis if available."
+            "Do not prefix your response with anything and just provide the list, with semicolon delimiter splitting each word."},
             {
-                "type": "input_image",
+                "type": "input_file",
                 "file_id": file_id,
             },
         ],
     }],
 )
 
-english_korean_pairs = response.output_text.splitlines()
-
-
-# with open('output.csv', 'w', newline='') as csvfile:
-#     writer = csv.writer(csvfile)
-#     for pair in english_korean_pairs:
-#         english, korean = pair.split(',')  # Split only at the first comma
-#         writer.writerow([english.strip(), korean.strip()])
-
-# csv_path = os.path.abspath(csvfile.name)
-# print(csv_path)
+word_pairs = response.output_text.splitlines()
 
 def request(action, **params):
     return {'action': action, 'params': params, 'version': 6}
@@ -69,23 +60,25 @@ def invoke(action, **params):
 deckname = sys.argv[2]
 invoke('createDeck', deck=deckname)
 
+notes = {}
+for vocab_pair in word_pairs:
+    try:
+        # print(vocab_pair)
+        english, foreign_word = vocab_pair.split(';')
+        note = {
+            "deckName": deckname,
+            "modelName": "Basic",
+            "fields": {
+                "Front": foreign_word,
+                "Back": english
+            }
+         }
+        notes[foreign_word] = note
+    except:
+        continue
+    
 
 
-notes = []
-for vocab_pair in english_korean_pairs:
-    english, korean = vocab_pair.split(',')
-    note = {
-        "deckName": deckname,
-        "modelName": "Basic",
-        "fields": {
-            "Front": korean,
-            "Back": english
-        }
-    }
-    notes.append(note)
-
-
-result = invoke("addNotes", notes=notes)
-print(result)
+result = invoke("addNotes", notes=list(notes.values()))
 
 
