@@ -67,7 +67,7 @@ for vocab_pair in word_pairs:
         english, foreign_word = vocab_pair.split(';')
         note = {
             "deckName": deckname,
-            "modelName": "Basic",
+            "modelName": "Basic (type in the answer)",
             "fields": {
                 "Front": foreign_word,
                 "Back": english
