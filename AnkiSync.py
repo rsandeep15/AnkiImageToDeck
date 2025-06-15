@@ -31,6 +31,12 @@ def invoke(action, **params):
 
 
 def main(): 
+    """
+    Given a PDF file, this script converts it to a list of English word to foreign word pairs.
+    The pairs are then added to an Anki deck as flashcards.
+    The foreign word is the front of the card and the English word is the back.
+    The deck is created with the name of the second argument passed to the script.
+    """
     client = OpenAI(
         # This is the default and can be omitted
         api_key=os.environ.get("OPENAI_API_KEY"),
