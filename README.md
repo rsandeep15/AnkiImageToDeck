@@ -1,7 +1,7 @@
 ## Gen AI Anki Connect
 
 ## Anki Sync 
-- Feed an PDF that contains vocabulary words to ChatGPT to convert it to Foreign language & English Pair Anki Flashcards
+- Feed a PDF that contains vocabulary words to ChatGPT to convert it to Foreign language & English Pair Anki Flashcards
 
 ```
 python3 AnkiSync.py <Path to PDF> <Anki Deck Name>
