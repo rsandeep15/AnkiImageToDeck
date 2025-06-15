@@ -11,7 +11,7 @@ def createAudioFile(client, text, fileName):
     This function utilizes the OpenAI client to convert the given text
     into speech and saves it as an audio file. The speech is generated
     using the "gpt-4o-mini-tts" model with the voice "onyx", and is
-    instructed to speak like a Korean native speaker.
+    instructed to speak like a native speaker.
 
     Args:
         client: An instance of the OpenAI client used to call the API.
@@ -23,7 +23,7 @@ def createAudioFile(client, text, fileName):
         model="gpt-4o-mini-tts",
         voice="onyx",
         input=text,
-        instructions="Speak like a Korean native speaker",
+        instructions="Speak like a native speaker for the passed in language. Ignore anything in parenthesis",
     ) as response:
         response.stream_to_file(Path(__file__).parent / fileName)
 
