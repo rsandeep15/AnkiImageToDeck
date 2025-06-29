@@ -13,3 +13,10 @@ python3 AnkiSync.py <Path to PDF> <Anki Deck Name>
 ```
 python3 AnkiDeckToSpeech.py <Anki Deck Name>
 ```
+
+## Anki Image Generation
+- Add AI generated images to cards to help remember vocabulary
+
+```
+python3 AnkiImageGen.py <Anki Deck Name>
+```
