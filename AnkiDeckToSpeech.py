@@ -42,11 +42,13 @@ def main():
             result = invoke("notesInfo", notes=[cardID])[0]
             frontText = result['fields']['Front']['value']
             backText = result['fields']['Back']['value']
-            print("Adding audio for: " + frontText)
-            filename = str(cardID)+".mp3"
-            createAudioFile(client, frontText, filename)
-            path_to_file = Path(__file__).parent.as_posix() + "/" + filename
-            result = invoke("updateNoteFields", note={"id":cardID, "fields": {"Front":frontText, "Back":backText}, "audio": [{"filename":filename, "fields": ["Front"],"path":path_to_file}]})
+            # Skip cards that already have audio
+            if "[sound" not in frontText:
+                print("Adding audio for: " + frontText)
+                filename = str(cardID)+".mp3"
+                createAudioFile(client, frontText, filename)
+                path_to_file = Path(__file__).parent.as_posix() + "/" + filename
+                result = invoke("updateNoteFields", note={"id":cardID, "fields": {"Front":frontText, "Back":backText}, "audio": [{"filename":filename, "fields": ["Front"],"path":path_to_file}]})
         except Exception as e:
             print(e)
             continue
