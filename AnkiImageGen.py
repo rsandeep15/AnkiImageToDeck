@@ -26,8 +26,8 @@ def generate_image(client, text, filename):
 def check_phrase(client: OpenAI, frontText: str, backText: str) -> bool:
     response = client.responses.create(
         model="gpt-4.1",
-        input="Read this pairing of words {frontText} and {backText} and determine if an AI generated image would be useful to memorize the word in Anki. " \
-        "If a word sounds really similar in both languages, reply 'false'. Please reply 'true' or 'false' without any other explanation in all lowercase".format(frontText=frontText, backText=backText),
+        input="Read this pairing of words {frontText} and {backText} and determine if an image would be helpful to memorize the word in Anki. " \
+        "If a word sounds really similar in both languages, reply 'false'. Single word nouns are likely to be useful to have a visual. You must reply 'true' or 'false' without any other explanation in all lowercase".format(frontText=frontText, backText=backText),
     )
     return response.output_text == "true"
 
