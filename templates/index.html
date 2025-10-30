@@ -1,14 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Anki Sync UI</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
+
 <body>
     <main class="container">
-        <h1>AnkiDecksmith Sync</h1>
+        <h1>Anki GenAI Sync</h1>
         <section class="upload-panel">
             <label for="deckName">Deck Name (optional)</label>
             <input id="deckName" type="text" placeholder="Defaults to PDF filename">
@@ -37,4 +39,5 @@
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
+
 </html>
