@@ -1,22 +1,119 @@
-## Gen AI Anki Connect
+# Gen AI Anki Toolkit
 
-## Anki Sync 
-- Feed a PDF that contains vocabulary words to ChatGPT to convert it to Foreign language & English Pair Anki Flashcards
+Streamline your language decks with a trio of OpenAI-powered helpers:
 
-```
-python3 AnkiSync.py <Path to PDF> <Anki Deck Name>
+- `AnkiSync.py` turns vocab PDFs into fully-populated Anki decks.
+- `AnkiDeckToSpeech.py` adds natural-sounding audio pronunciations.
+- `AnkiImageGen.py` decorates cards with visual mnemonics.
+
+All scripts talk to a local AnkiConnect instance at `http://127.0.0.1:8765` and assume `OPENAI_API_KEY` is set in your shell.
+
+---
+
+## Setup
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+export OPENAI_API_KEY=sk-...
 ```
 
-## Anki Deck to Speech
-- Add AI generated audio clips to your cards via ChatGPT text to speech
+Make sure Anki is running with the AnkiConnect add-on enabled. Generated media files are stored under `media/audio`, `media/images`, and processed PDFs are archived to `pdfs/`.
 
-```
-python3 AnkiDeckToSpeech.py <Anki Deck Name>
+---
+
+## AnkiSync — Build Decks From PDFs
+
+**What it does**
+
+- uploads a PDF to OpenAI
+- extracts vocabulary pairs (`english`, `foreign`, optional `romanized`)
+- creates / populates the target deck via AnkiConnect
+- archives the original PDF to `pdfs/`
+
+**Usage**
+
+```bash
+python AnkiSync.py path/to/lesson.pdf --deck "Korean Deck" \
+  --model gpt-4.1-mini \
+  --romanized          # include romanized text (default)
 ```
 
-## Anki Image Generation
-- Add AI generated images to cards to help remember vocabulary
+Key flags:
 
+- `--deck`: overrides the auto-generated deck name (defaults to the PDF filename without extension)
+- `--model`: choose the extraction model (e.g. `gpt-4o-mini`, `gpt-4.1`)
+- `--romanized` / `--no-romanized`: toggle romanized text in card fronts
+
+Failures emit the offending JSON snippet to help diagnose prompt/output issues.
+
+---
+
+## AnkiDeckToSpeech — Add Pronunciation Audio
+
+**What it does**
+
+- fetches notes from the chosen deck
+- skips cards that already include `[sound ...]`
+- generates MP3s in `media/audio/` using OpenAI TTS
+- attaches the audio to the front field via AnkiConnect
+
+**Usage**
+
+```bash
+python AnkiDeckToSpeech.py "Korean Deck" \
+  --model gpt-4o-mini-tts \
+  --voice onyx \
+  --workers 8
 ```
-python3 AnkiImageGen.py <Anki Deck Name>
+
+Key flags:
+
+- `--model`: any supported TTS model (`gpt-4o-mini-tts`, etc.)
+- `--voice`: voice preset offered by the TTS model
+- `--instructions`: extra voice guidance (defaults to “speak like a native ... ignore HTML/parentheses”)
+- `--workers`: concurrency level (defaults to `ANKI_AUDIO_WORKERS` env var or 10)
+
+Text is sanitized before synthesis (HTML stripped, whitespace collapsed). The script finishes with a summary of added / skipped / failed generations.
+
+---
+
+## AnkiImageGen — Add Visual Mnemonics
+
+**What it does**
+
+- retrieves deck notes and skips those already containing `<img`
+- (optional) runs a gating model to decide whether an image is helpful
+- generates PNGs in `media/images/` using the configured image model
+- attaches the image to the front field via AnkiConnect
+
+**Usage**
+
+```bash
+python AnkiImageGen.py "Korean Deck" \
+  --image-model gpt-image-1 \
+  --gating-model gpt-4.1 \
+  --prompt "Generate a mnemonic illustration for: {text}" \
+  --workers 3
 ```
+
+Key flags:
+
+- `--image-model`: OpenAI image endpoint to call
+- `--gating-model`: text model that returns `true` / `false` (set `--skip-gating` to bypass)
+- `--prompt`: templated string where `{text}` is replaced with the card back
+- `--workers`: concurrency level (defaults to `ANKI_IMAGE_WORKERS` env var or 3)
+- `--skip-gating`: generate for every card, regardless of the gating check
+
+Each run ends with a summary of added / skipped / failed image generations.
+
+---
+
+## Tips & Troubleshooting
+
+- **Rate limits**: tune `--workers` (or env vars) to stay within your OpenAI quotas.
+- **AnkiConnect errors**: ensure Anki is open, add-on installed, and port accessible.
+- **Logging verbosity**: scripts print card-level status messages; redirect stdout if you prefer a quieter run.
+
+Happy deck building! Feel free to mix and match scripts—import the vocab with `AnkiSync.py`, then layer on audio and images whenever you’re ready.
