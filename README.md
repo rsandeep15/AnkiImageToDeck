@@ -49,6 +49,7 @@ Switch to the **Deck Audio** or **Deck Images** tabs to:
 - monitor stdout/stderr for each job directly in the browser
 - watch optimistic progress/ETA updates while long-running jobs finish
 - choose from your account’s available OpenAI models via the auto-populated dropdowns
+- control concurrency with worker dropdowns that mirror the script defaults
 
 ---
 
