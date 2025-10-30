@@ -3,14 +3,22 @@ const fileInput = document.getElementById("fileInput");
 const syncButton = document.getElementById("syncButton");
 const statusLogSync = document.getElementById("statusLogSync");
 const deckNameInput = document.getElementById("deckName");
-const modelInput = document.getElementById("modelSelect");
+const textModelSelect = document.getElementById("textModelSelect");
 const romanizedToggle = document.getElementById("romanizedToggle");
 
-const deckSelect = document.getElementById("deckSelect");
-const refreshDecksButton = document.getElementById("refreshDecks");
+const audioDeckSelect = document.getElementById("audioDeckSelect");
+const audioModelSelect = document.getElementById("audioModelSelect");
+const refreshDecksAudio = document.getElementById("refreshDecksAudio");
 const generateAudioButton = document.getElementById("generateAudio");
+const statusLogAudio = document.getElementById("statusLogAudio");
+
+const imageDeckSelect = document.getElementById("imageDeckSelect");
+const imageModelSelect = document.getElementById("imageModelSelect");
+const gatingModelSelect = document.getElementById("gatingModelSelect");
+const skipGatingToggle = document.getElementById("skipGatingToggle");
+const refreshDecksImages = document.getElementById("refreshDecksImages");
 const generateImagesButton = document.getElementById("generateImages");
-const statusLogMedia = document.getElementById("statusLogMedia");
+const statusLogImages = document.getElementById("statusLogImages");
 
 const tabButtons = document.querySelectorAll(".tab-button");
 const tabPanels = document.querySelectorAll(".tab-panel");
@@ -18,6 +26,7 @@ const tabPanels = document.querySelectorAll(".tab-panel");
 let selectedFile = null;
 
 function setStatus(element, message, append = false) {
+    if (!element) return;
     if (append) {
         element.textContent += `\n${message}`;
     } else {
@@ -31,7 +40,7 @@ function showProgress(element, text) {
     const spinner = document.createElement("div");
     spinner.className = "spinner";
     const label = document.createElement("span");
-    label.textContent = text;
+    label.innerHTML = text;
     container.appendChild(spinner);
     container.appendChild(label);
     element.parentNode.insertBefore(container, element);
@@ -39,33 +48,29 @@ function showProgress(element, text) {
 }
 
 function updateProgress(container, text, etaText) {
-    if (!container) {
-        return;
-    }
+    if (!container) return;
     const label = container.querySelector("span");
-    if (label) {
+    if (!label) return;
+    if (etaText) {
+        label.innerHTML = `${text}<br><span class="eta-text">${etaText}</span>`;
+    } else {
         label.textContent = text;
-        if (etaText) {
-            label.innerHTML = `${text}<br><span class="eta-text">${etaText}</span>`;
-        }
     }
 }
 
 function removeProgress(container) {
-    if (container && container.parentNode) {
+    if (container?.parentNode) {
         container.parentNode.removeChild(container);
     }
 }
 
 function updateSyncButton() {
-    syncButton.disabled = !selectedFile;
+    syncButton.disabled = !selectedFile || !textModelSelect.value;
 }
 
 function handleFiles(files) {
     const file = files[0];
-    if (!file) {
-        return;
-    }
+    if (!file) return;
     if (!file.name.toLowerCase().endsWith(".pdf")) {
         setStatus(statusLogSync, "Please choose a PDF file.");
         selectedFile = null;
@@ -87,9 +92,7 @@ function switchTab(tabName) {
 }
 
 tabButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-        switchTab(button.dataset.tab);
-    });
+    button.addEventListener("click", () => switchTab(button.dataset.tab));
 });
 
 dropZone.addEventListener("click", () => fileInput.click());
@@ -109,14 +112,121 @@ dropZone.addEventListener("drop", (event) => {
     handleFiles(event.dataTransfer.files);
 });
 
-fileInput.addEventListener("change", (event) => {
-    handleFiles(event.target.files);
-});
+fileInput.addEventListener("change", (event) => handleFiles(event.target.files));
+
+async function loadModels(kind, select, preferredValue, statusElement, onComplete) {
+    if (!select) return;
+    select.innerHTML = `<option value="">Loading ${kind} models...</option>`;
+    select.disabled = true;
+    try {
+        const response = await fetch(`/api/models/${kind}`);
+        const data = await response.json();
+        if (data.ok && Array.isArray(data.models) && data.models.length) {
+            select.innerHTML = "";
+            data.models.forEach((id) => {
+                const option = document.createElement("option");
+                option.value = id;
+                option.textContent = id;
+                select.appendChild(option);
+            });
+            if (preferredValue && data.models.includes(preferredValue)) {
+                select.value = preferredValue;
+            }
+        } else {
+            select.innerHTML = `<option value="">No ${kind} models</option>`;
+            if (statusElement) {
+                setStatus(statusElement, data.message || `No ${kind} models available.`);
+            }
+        }
+    } catch (error) {
+        select.innerHTML = `<option value="">Unavailable</option>`;
+        if (statusElement) {
+            setStatus(statusElement, `❌ Failed to load ${kind} models: ${error}`);
+        }
+    } finally {
+        select.disabled = false;
+        if (typeof onComplete === "function") onComplete();
+    }
+}
+
+function populateDeckSelect(select, decks) {
+    if (!select) return;
+    select.innerHTML = "";
+    decks.forEach((deck) => {
+        const option = document.createElement("option");
+        option.value = deck;
+        option.textContent = deck;
+        select.appendChild(option);
+    });
+    if (!select.value && decks.length) {
+        select.value = decks[0];
+    }
+}
+
+async function loadDecks() {
+    const selects = [audioDeckSelect, imageDeckSelect];
+    selects.forEach((select) => {
+        if (select) {
+            select.innerHTML = '<option value="">Loading decks...</option>';
+            select.disabled = true;
+        }
+    });
+    setStatus(statusLogAudio, "Fetching decks...");
+    setStatus(statusLogImages, "Fetching decks...");
+    try {
+        const response = await fetch("/api/decks");
+        const data = await response.json();
+        if (data.ok && Array.isArray(data.decks) && data.decks.length) {
+            selects.forEach((select) => populateDeckSelect(select, data.decks));
+            setStatus(statusLogAudio, "Select a deck and model to begin.");
+            setStatus(statusLogImages, "Select a deck and model to begin.");
+        } else {
+            const message = data.message || "No decks found.";
+            selects.forEach((select) => {
+                if (select) {
+                    select.innerHTML = `<option value="">${message}</option>`;
+                }
+            });
+            setStatus(statusLogAudio, message);
+            setStatus(statusLogImages, message);
+        }
+    } catch (error) {
+        selects.forEach((select) => {
+            if (select) {
+                select.innerHTML = '<option value="">Error loading decks</option>';
+            }
+        });
+        setStatus(statusLogAudio, `❌ Failed to fetch decks: ${error}`);
+        setStatus(statusLogImages, `❌ Failed to fetch decks: ${error}`);
+    } finally {
+        selects.forEach((select) => {
+            if (select) select.disabled = false;
+        });
+        updateAudioControls();
+        updateImageControls();
+    }
+}
+
+function updateAudioControls() {
+    const hasDeck = Boolean(audioDeckSelect?.value);
+    const hasModel = Boolean(audioModelSelect?.value);
+    generateAudioButton.disabled = !(hasDeck && hasModel);
+}
+
+function updateImageControls() {
+    const hasDeck = Boolean(imageDeckSelect?.value);
+    const hasImageModel = Boolean(imageModelSelect?.value);
+    const gatingRequired = !skipGatingToggle.checked;
+    gatingModelSelect.disabled = !gatingRequired;
+    const hasGatingModel = gatingRequired ? Boolean(gatingModelSelect?.value) : true;
+    generateImagesButton.disabled = !(hasDeck && hasImageModel && hasGatingModel);
+}
 
 syncButton.addEventListener("click", async () => {
-    if (!selectedFile) {
+    if (!selectedFile || !textModelSelect.value) {
         return;
     }
+
     setStatus(statusLogSync, "Uploading and syncing deck...");
     const progressNode = showProgress(statusLogSync, "Processing PDF...");
     syncButton.disabled = true;
@@ -124,7 +234,7 @@ syncButton.addEventListener("click", async () => {
     const formData = new FormData();
     formData.append("file", selectedFile);
     formData.append("deck", deckNameInput.value);
-    formData.append("model", modelInput.value);
+    formData.append("model", textModelSelect.value);
     formData.append("romanized", romanizedToggle.checked ? "true" : "false");
 
     try {
@@ -134,14 +244,14 @@ syncButton.addEventListener("click", async () => {
         });
         const data = await response.json();
         if (data.ok) {
-            const etaText = data.eta_text || "";
-            updateProgress(progressNode, "Sync complete!", etaText);
+            updateProgress(progressNode, "Sync complete!", data.eta_text);
+            const processed = data.items_processed !== undefined ? ` (cards processed: ${data.items_processed})` : "";
             setStatus(
                 statusLogSync,
-                `✅ ${data.message}${data.items_processed !== undefined ? ` (cards processed: ${data.items_processed})` : ""}\n\n${data.stdout}`
+                `✅ ${data.message}${processed}\n\n${data.stdout}`
             );
             if (data.stderr) {
-                setStatus(statusLogSync, `✅ ${data.message}\n\n${data.stdout}\n${data.stderr}`, true);
+                setStatus(statusLogSync, data.stderr, true);
             }
         } else {
             setStatus(
@@ -157,105 +267,124 @@ syncButton.addEventListener("click", async () => {
     }
 });
 
-function updateMediaButtons() {
-    const hasDeck = Boolean(deckSelect.value);
-    generateAudioButton.disabled = !hasDeck;
-    generateImagesButton.disabled = !hasDeck;
-}
-
-deckSelect.addEventListener("change", updateMediaButtons);
-
-async function loadDecks() {
-    setStatus(statusLogMedia, "Fetching decks...");
-    deckSelect.disabled = true;
-    generateAudioButton.disabled = true;
-    generateImagesButton.disabled = true;
-
-    try {
-        const response = await fetch("/api/decks");
-        const data = await response.json();
-        deckSelect.innerHTML = "";
-        if (data.ok && Array.isArray(data.decks) && data.decks.length > 0) {
-            for (const deck of data.decks) {
-                const option = document.createElement("option");
-                option.value = deck;
-                option.textContent = deck;
-                deckSelect.appendChild(option);
-            }
-            setStatus(statusLogMedia, "Select a deck and choose an action.");
-        } else {
-            const option = document.createElement("option");
-            option.value = "";
-            option.textContent = data.message || "No decks found.";
-            deckSelect.appendChild(option);
-            setStatus(statusLogMedia, data.message || "No decks available.");
-        }
-    } catch (error) {
-        const option = document.createElement("option");
-        option.value = "";
-        option.textContent = "Error loading decks.";
-        deckSelect.appendChild(option);
-        setStatus(statusLogMedia, `❌ Failed to fetch decks: ${error}`);
-    } finally {
-        deckSelect.disabled = false;
-        updateMediaButtons();
-    }
-}
-
-refreshDecksButton.addEventListener("click", () => {
-    loadDecks();
-});
-
-async function triggerGeneration(endpoint, actionDescription) {
-    const deck = deckSelect.value;
-    if (!deck) {
-        setStatus(statusLogMedia, "Please select a deck first.");
+async function generateAudio() {
+    const deck = audioDeckSelect.value;
+    const model = audioModelSelect.value;
+    if (!deck || !model) {
+        setStatus(statusLogAudio, "Please select a deck and audio model.");
         return;
     }
 
-    setStatus(statusLogMedia, `${actionDescription} for deck "${deck}"...`);
-    const progressNode = showProgress(statusLogMedia, "Working...");
+    setStatus(statusLogAudio, `Generating audio for deck "${deck}"...`);
+    const progressNode = showProgress(statusLogAudio, "Generating audio...");
     generateAudioButton.disabled = true;
-    generateImagesButton.disabled = true;
 
     try {
-        const response = await fetch(endpoint, {
+        const response = await fetch("/generate/audio", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ deck }),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ deck, model }),
         });
         const data = await response.json();
         if (data.ok) {
-            updateProgress(progressNode, "Job complete!", data.eta_text);
-            const items = data.items_processed !== undefined ? ` (cards processed: ${data.items_processed})` : "";
+            updateProgress(progressNode, "Audio complete!", data.eta_text);
+            const processed = data.items_processed !== undefined ? ` (cards processed: ${data.items_processed})` : "";
             setStatus(
-                statusLogMedia,
-                `✅ ${data.message}${items}\n\n${data.stdout}${data.stderr ? `\n${data.stderr}` : ""}`
+                statusLogAudio,
+                `✅ ${data.message}${processed}\n\n${data.stdout}${data.stderr ? `\n${data.stderr}` : ""}`
             );
         } else {
             setStatus(
-                statusLogMedia,
+                statusLogAudio,
                 `⚠️ ${data.message}\n\n${data.stdout || ""}\n${data.stderr || ""}`
             );
         }
     } catch (error) {
-        setStatus(statusLogMedia, `❌ Request failed: ${error}`);
+        setStatus(statusLogAudio, `❌ Request failed: ${error}`);
     } finally {
-        updateMediaButtons();
         removeProgress(progressNode);
+        updateAudioControls();
     }
 }
 
-generateAudioButton.addEventListener("click", () => {
-    triggerGeneration("/generate/audio", "Generating audio");
-});
+generateAudioButton.addEventListener("click", generateAudio);
 
-generateImagesButton.addEventListener("click", () => {
-    triggerGeneration("/generate/images", "Generating images");
-});
+async function generateImages() {
+    const deck = imageDeckSelect.value;
+    const imageModel = imageModelSelect.value;
+    const gatingModel = gatingModelSelect.value;
+    const skipGating = skipGatingToggle.checked;
 
-// Initialize
-updateSyncButton();
+    if (!deck || !imageModel) {
+        setStatus(statusLogImages, "Please select a deck and image model.");
+        return;
+    }
+    if (!skipGating && !gatingModel) {
+        setStatus(statusLogImages, "Select a gating model or enable skip gating.");
+        return;
+    }
+
+    setStatus(statusLogImages, `Generating images for deck "${deck}"...`);
+    const progressNode = showProgress(statusLogImages, "Generating images...");
+    generateImagesButton.disabled = true;
+
+    const payload = {
+        deck,
+        image_model: imageModel,
+        skip_gating: skipGating,
+    };
+    if (!skipGating && gatingModel) {
+        payload.gating_model = gatingModel;
+    }
+
+    try {
+        const response = await fetch("/generate/images", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (data.ok) {
+            updateProgress(progressNode, "Images complete!", data.eta_text);
+            const processed = data.items_processed !== undefined ? ` (cards processed: ${data.items_processed})` : "";
+            setStatus(
+                statusLogImages,
+                `✅ ${data.message}${processed}\n\n${data.stdout}${data.stderr ? `\n${data.stderr}` : ""}`
+            );
+        } else {
+            setStatus(
+                statusLogImages,
+                `⚠️ ${data.message}\n\n${data.stdout || ""}\n${data.stderr || ""}`
+            );
+        }
+    } catch (error) {
+        setStatus(statusLogImages, `❌ Request failed: ${error}`);
+    } finally {
+        removeProgress(progressNode);
+        updateImageControls();
+    }
+}
+
+generateImagesButton.addEventListener("click", generateImages);
+
+refreshDecksAudio.addEventListener("click", loadDecks);
+refreshDecksImages.addEventListener("click", loadDecks);
+
+audioDeckSelect.addEventListener("change", updateAudioControls);
+audioModelSelect.addEventListener("change", updateAudioControls);
+
+imageDeckSelect.addEventListener("change", updateImageControls);
+imageModelSelect.addEventListener("change", updateImageControls);
+gatingModelSelect.addEventListener("change", updateImageControls);
+skipGatingToggle.addEventListener("change", updateImageControls);
+
 loadDecks();
+loadModels("text", textModelSelect, "gpt-4.1-mini", statusLogSync, updateSyncButton);
+loadModels("audio", audioModelSelect, "gpt-4o-mini-tts", statusLogAudio, updateAudioControls);
+loadModels("image", imageModelSelect, "gpt-image-1", statusLogImages, updateImageControls);
+loadModels("text", gatingModelSelect, "gpt-4.1", statusLogImages, updateImageControls);
+
+textModelSelect.addEventListener("change", updateSyncButton);
+updateSyncButton();
+updateAudioControls();
+updateImageControls();

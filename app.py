@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+from functools import lru_cache
 from pathlib import Path
 from typing import List, Tuple
 
@@ -8,6 +9,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
 from werkzeug.utils import secure_filename
 
+from openai import OpenAI
 from AnkiSync import invoke
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -50,6 +52,56 @@ def list_decks():
     try:
         decks = invoke("deckNames")
         return jsonify({"ok": True, "decks": decks})
+    except Exception as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 500
+
+
+@lru_cache(maxsize=1)
+def cached_model_ids() -> List[str]:
+    client = OpenAI()
+    response = client.models.list()
+    data = getattr(response, "data", [])
+    return [getattr(model, "id", "") for model in data if getattr(model, "id", "")]
+
+
+def filter_models(kind: str) -> List[str]:
+    kind = kind.lower()
+    ids = cached_model_ids()
+
+    def is_text(model_id: str) -> bool:
+        blocked = ("tts", "audio", "image", "embed", "embedding", "speech")
+        if not model_id.startswith(("gpt", "o")):
+            return False
+        return not any(token in model_id for token in blocked)
+
+    def is_audio(model_id: str) -> bool:
+        return "tts" in model_id or model_id.endswith("-tts") or "audio" in model_id
+
+    def is_image(model_id: str) -> bool:
+        return "image" in model_id or model_id.startswith("dall-e")
+
+    if kind == "text":
+        return sorted(filter(is_text, ids))
+    if kind == "audio":
+        return sorted(filter(is_audio, ids))
+    if kind == "image":
+        return sorted(filter(is_image, ids))
+    raise ValueError("Unsupported model kind")
+
+
+@app.route("/api/models/<kind>", methods=["GET"])
+def list_models(kind: str):
+    if kind not in {"text", "audio", "image"}:
+        return jsonify({"ok": False, "message": "Unsupported model type."}), 400
+
+    if request.args.get("refresh") == "1":
+        cached_model_ids.cache_clear()
+
+    try:
+        models = filter_models(kind)
+        if not models:
+            return jsonify({"ok": False, "message": f"No {kind} models available."}), 404
+        return jsonify({"ok": True, "models": models})
     except Exception as exc:
         return jsonify({"ok": False, "message": str(exc)}), 500
 

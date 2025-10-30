@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AnkiDecksmith UI</title>
+    <title>Anki GenAI Sync</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
     <main class="container">
-        <h1>AnkiDecksmith Control Panel</h1>
+        <h1>Anki GenAI Sync Control Panel</h1>
 
         <nav class="tabs">
             <button class="tab-button active" data-tab="sync">PDF ➜ Deck</button>
-            <button class="tab-button" data-tab="media">Deck Media</button>
+            <button class="tab-button" data-tab="audio">Deck Audio</button>
+            <button class="tab-button" data-tab="images">Deck Images</button>
         </nav>
 
         <section id="tab-sync" class="tab-panel active">
@@ -21,8 +22,10 @@
                 <label for="deckName">Deck Name (optional)</label>
                 <input id="deckName" type="text" placeholder="Defaults to PDF filename">
 
-                <label for="modelSelect">Extraction Model</label>
-                <input id="modelSelect" type="text" value="gpt-4.1-mini">
+                <label for="textModelSelect">Extraction Model</label>
+                <select id="textModelSelect">
+                    <option value="">Loading models...</option>
+                </select>
 
                 <label class="checkbox-row">
                     <input id="romanizedToggle" type="checkbox" checked>
@@ -43,28 +46,63 @@
             </section>
         </section>
 
-        <section id="tab-media" class="tab-panel">
+        <section id="tab-audio" class="tab-panel">
             <div class="card">
-                <h2>Generate Media for Existing Deck</h2>
-                <div class="deck-select-row">
-                    <label for="deckSelect">Select deck</label>
-                    <div class="deck-select-controls">
-                        <select id="deckSelect">
-                            <option value="">Loading decks...</option>
-                        </select>
-                        <button id="refreshDecks" class="secondary-button">Refresh</button>
-                    </div>
+                <h2>Generate Audio</h2>
+                <label for="audioDeckSelect">Deck</label>
+                <div class="deck-select-controls">
+                    <select id="audioDeckSelect">
+                        <option value="">Loading decks...</option>
+                    </select>
+                    <button id="refreshDecksAudio" class="secondary-button">Refresh</button>
                 </div>
 
-                <div class="button-row">
-                    <button id="generateAudio" class="accent-button audio-button" disabled>Generate Audio</button>
-                    <button id="generateImages" class="accent-button image-button" disabled>Generate Images</button>
-                </div>
+                <label for="audioModelSelect">Audio Model</label>
+                <select id="audioModelSelect">
+                    <option value="">Loading models...</option>
+                </select>
+
+                <button id="generateAudio" class="accent-button audio-button" disabled>Generate Audio</button>
             </div>
 
             <section class="status-panel">
-                <h2>Media Generation Log</h2>
-                <pre id="statusLogMedia">Select a deck to begin.</pre>
+                <h2>Audio Generation Log</h2>
+                <pre id="statusLogAudio">Select a deck to begin.</pre>
+            </section>
+        </section>
+
+        <section id="tab-images" class="tab-panel">
+            <div class="card">
+                <h2>Generate Images</h2>
+                <label for="imageDeckSelect">Deck</label>
+                <div class="deck-select-controls">
+                    <select id="imageDeckSelect">
+                        <option value="">Loading decks...</option>
+                    </select>
+                    <button id="refreshDecksImages" class="secondary-button">Refresh</button>
+                </div>
+
+                <label for="imageModelSelect">Image Model</label>
+                <select id="imageModelSelect">
+                    <option value="">Loading models...</option>
+                </select>
+
+                <label for="gatingModelSelect">Gating Model</label>
+                <select id="gatingModelSelect">
+                    <option value="">Loading models...</option>
+                </select>
+
+                <label class="checkbox-row">
+                    <input id="skipGatingToggle" type="checkbox">
+                    Skip gating check
+                </label>
+
+                <button id="generateImages" class="accent-button image-button" disabled>Generate Images</button>
+            </div>
+
+            <section class="status-panel">
+                <h2>Image Generation Log</h2>
+                <pre id="statusLogImages">Select a deck to begin.</pre>
             </section>
         </section>
     </main>
