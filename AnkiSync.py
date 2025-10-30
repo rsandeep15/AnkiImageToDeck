@@ -75,7 +75,7 @@ def parse_args():
         action="store_false",
         help="Skip romanized text in the generated cards.",
     )
-    parser.set_defaults(include_romanized=True)
+    parser.set_defaults(include_romanized=False)
     return parser.parse_args()
 
 

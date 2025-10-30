@@ -1,8 +1,11 @@
+import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 from pathlib import Path
+import re
+from typing import Any, List, Tuple
+
 from openai import OpenAI
-import sys
 
 from AnkiSync import invoke
 
@@ -10,78 +13,187 @@ BASE_DIR = Path(__file__).resolve().parent
 MEDIA_DIR = BASE_DIR / "media"
 AUDIO_DIR = MEDIA_DIR / "audio"
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
-MAX_WORKERS = max(1, int(os.environ.get("ANKI_AUDIO_WORKERS", "10")))
+DEFAULT_MAX_WORKERS = 10
+HTML_TAG_RE = re.compile(r"<[^>]+>")
 
-def createAudioFile(client, text, fileName):
-    """
-    Generates an audio file using text-to-speech synthesis.
 
-    This function utilizes the OpenAI client to convert the given text
-    into speech and saves it as an audio file. The speech is generated
-    using the "gpt-4o-mini-tts" model with the voice "onyx", and is
-    instructed to speak like a native speaker.
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Add text-to-speech audio to Anki notes in a specified deck."
+    )
+    parser.add_argument(
+        "deck",
+        help="Name of the Anki deck to process.",
+    )
+    parser.add_argument(
+        "--model",
+        default="gpt-4o-mini-tts",
+        help=(
+            "OpenAI TTS model to use (default: %(default)s). "
+            "Consider alternatives like 'gpt-4o-realtime-preview-tts' if available."
+        ),
+    )
+    parser.add_argument(
+        "--voice",
+        default="onyx",
+        help="Voice to use for the TTS model (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--instructions",
+        default=(
+            "Speak like a native speaker for the passed in language. "
+            "Treat the provided text as plain text, ignoring HTML tags or parenthetical notes."
+        ),
+        help="Additional instructions passed to the TTS model.",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=int(os.environ.get("ANKI_AUDIO_WORKERS", str(DEFAULT_MAX_WORKERS))),
+        help="Maximum number of concurrent audio generations (default: %(default)s).",
+    )
+    return parser.parse_args()
 
-    Args:
-        client: An instance of the OpenAI client used to call the API.
-        text (str): The text to be converted into speech.
-        fileName (str): The name of the output audio file.
-    """
 
+def load_api_key() -> str:
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise SystemExit("Environment variable OPENAI_API_KEY is not set.")
+    return api_key
+
+
+def get_candidate_cards(deckname: str) -> List[Tuple[int, str, str]]:
+    cards = invoke("findNotes", query=f"deck:{deckname}")
+    if not cards:
+        return []
+    notes_info = invoke("notesInfo", notes=cards)
+    candidates: List[Tuple[int, str, str]] = []
+    for card_id, note in zip(cards, notes_info):
+        front_text = note["fields"]["Front"]["value"]
+        back_text = note["fields"]["Back"]["value"]
+        if "[sound" in front_text:
+            print(f"Skipping audio for (already has sound): {front_text}")
+            continue
+        candidates.append((card_id, front_text, back_text))
+    return candidates
+
+
+def prepare_text_for_tts(text: str) -> str:
+    """Strip HTML tags and collapse whitespace for cleaner TTS input."""
+    without_tags = HTML_TAG_RE.sub(" ", text)
+    return " ".join(without_tags.split())
+
+def create_audio_file(
+    client: OpenAI,
+    text: str,
+    filename: str,
+    *,
+    model: str,
+    voice: str,
+    instructions: str,
+) -> None:
+    """Generate speech audio for the supplied text and persist it to disk."""
+    target_path = AUDIO_DIR / filename
     with client.audio.speech.with_streaming_response.create(
-        model="gpt-4o-mini-tts",
-        voice="onyx",
+        model=model,
+        voice=voice,
         input=text,
-        instructions="Speak like a native speaker for the passed in language. Ignore anything in parenthesis",
+        instructions=instructions,
     ) as response:
-        response.stream_to_file(AUDIO_DIR / fileName)
+        response.stream_to_file(target_path)
 
 
-def main():
+def process_card(
+    card: Tuple[int, str, str],
+    api_key: str,
+    model: str,
+    voice: str,
+    instructions: str,
+) -> Tuple[str, str, Any]:
+    card_id, front_text, back_text = card
+    local_client = OpenAI(api_key=api_key)
+    filename = f"{card_id}.mp3"
+    tts_input = prepare_text_for_tts(front_text)
+    if not tts_input:
+        return ("skip", front_text, "No speakable text after cleaning.")
+    try:
+        create_audio_file(
+            local_client,
+            tts_input,
+            filename,
+            model=model,
+            voice=voice,
+            instructions=instructions,
+        )
+        file_path = (AUDIO_DIR / filename).resolve()
+        invoke(
+            "updateNoteFields",
+            note={
+                "id": card_id,
+                "fields": {"Front": front_text, "Back": back_text},
+                "audio": [
+                    {
+                        "filename": filename,
+                        "fields": ["Front"],
+                        "path": file_path.as_posix(),
+                    }
+                ],
+            },
+        )
+        return ("added", front_text, None)
+    except Exception as exc:
+        return ("error", front_text, exc)
+
+
+def main() -> None:
     """
     Given a deck name, this script adds audio to all cards in that deck.
     The audio is generated by ChatGPT text to speech, and is added as a sound file to the front of the card.
     The filename of the sound file is the card id.
     """
-    deckname = sys.argv[1]
-    cards = invoke("findNotes", query="deck:{deck_name}".format(deck_name=deckname))
+    args = parse_args()
+    api_key = load_api_key()
 
-    if not cards:
-        print("No cards found for deck:", deckname)
-        return
-
-    notes_info = invoke("notesInfo", notes=cards)
-
-    candidates = []
-    for cardID, note in zip(cards, notes_info):
-        frontText = note['fields']['Front']['value']
-        backText = note['fields']['Back']['value']
-        if "[sound" in frontText:
-            print("Skipping audio for (already has sound): " + frontText)
-            continue
-        candidates.append((cardID, frontText, backText))
-
+    print(f"Fetching notes for deck: {args.deck}")
+    candidates = get_candidate_cards(args.deck)
     if not candidates:
-        print("No cards eligible for audio generation.")
+        print(f"No cards eligible for audio generation in deck '{args.deck}'.")
         return
 
-    def process_card(cardID, frontText, backText):
-        local_client = OpenAI()
-        try:
-            filename = str(cardID) + ".mp3"
-            createAudioFile(local_client, frontText, filename)
-            file_path = (AUDIO_DIR / filename).resolve()
-            invoke("updateNoteFields", note={"id":cardID, "fields": {"Front":frontText, "Back":backText}, "audio": [{"filename":filename, "fields": ["Front"],"path":file_path.as_posix()}]})
-            return ("added", frontText, None)
-        except Exception as exc:
-            return ("error", frontText, exc)
+    worker_limit = max(1, args.workers)
+    max_workers = max(1, min(worker_limit, len(candidates)))
+    instructions = args.instructions.strip()
+    print(
+        f"Generating audio with up to {max_workers} worker(s) using model {args.model} and voice {args.voice}."
+    )
 
-    with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(candidates))) as executor:
-        futures = [executor.submit(process_card, *candidate) for candidate in candidates]
+    added = skipped = failed = 0
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [
+            executor.submit(
+                process_card,
+                card,
+                api_key,
+                args.model,
+                args.voice,
+                instructions,
+            )
+            for card in candidates
+        ]
         for future in as_completed(futures):
-            status, frontText, error = future.result()
+            status, front_text, error = future.result()
             if status == "added":
-                print("Adding audio for: " + frontText)
+                print(f"Adding audio for: {front_text}")
+                added += 1
+            elif status == "skip":
+                print(f"Skipping audio for: {front_text} ({error})")
+                skipped += 1
             else:
-                print("Failed audio for: {text} ({err})".format(text=frontText, err=error))
-if __name__=="__main__":
+                print(f"Failed audio for: {front_text} ({error})")
+                failed += 1
+
+    print(f"Completed audio generation: {added} added, {skipped} skipped, {failed} failed.")
+
+
+if __name__ == "__main__":
     main()
