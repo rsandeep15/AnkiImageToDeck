@@ -4,7 +4,7 @@ Streamline your language decks with a trio of OpenAI-powered helpers:
 
 - `AnkiSync.py` turns vocab PDFs into fully-populated Anki decks.
 - `AnkiDeckToSpeech.py` adds natural-sounding audio pronunciations.
-- `AnkiImageGen.py` decorates cards with visual mnemonics.
+- `AnkiDeckToImages.py` decorates cards with visual mnemonics.
 - `app.py` (optional) launches a local Flask UI for drag-and-drop syncing.
 
 All scripts talk to a local AnkiConnect instance at `http://127.0.0.1:8765` and assume `OPENAI_API_KEY` is set in your shell.
@@ -41,6 +41,13 @@ flask run  # or python app.py
 ```
 
 Then open http://127.0.0.1:5000/ in your browser. Drag-and-drop a PDF, tweak the deck/model options, and click “Upload & Sync” to trigger `AnkiSync.py`.
+
+Switch to the **Deck Media** tab to:
+
+- pick an existing deck from a live AnkiConnect dropdown
+- trigger `AnkiDeckToSpeech.py` or `AnkiImageGen.py` without the CLI
+- monitor stdout/stderr for each job directly in the browser
+- watch optimistic progress/ETA updates while long-running jobs finish
 
 ---
 

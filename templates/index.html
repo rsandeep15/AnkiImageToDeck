@@ -1,43 +1,74 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anki Sync UI</title>
+    <title>AnkiDecksmith UI</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
-
 <body>
     <main class="container">
-        <h1>Anki GenAI Sync</h1>
-        <section class="upload-panel">
-            <label for="deckName">Deck Name (optional)</label>
-            <input id="deckName" type="text" placeholder="Defaults to PDF filename">
+        <h1>AnkiDecksmith Control Panel</h1>
 
-            <label for="modelSelect">Extraction Model</label>
-            <input id="modelSelect" type="text" value="gpt-4.1-mini">
+        <nav class="tabs">
+            <button class="tab-button active" data-tab="sync">PDF ➜ Deck</button>
+            <button class="tab-button" data-tab="media">Deck Media</button>
+        </nav>
 
-            <label class="checkbox-row">
-                <input id="romanizedToggle" type="checkbox" checked>
-                Include romanized text
-            </label>
+        <section id="tab-sync" class="tab-panel active">
+            <div class="card">
+                <h2>Upload Vocabulary PDF</h2>
+                <label for="deckName">Deck Name (optional)</label>
+                <input id="deckName" type="text" placeholder="Defaults to PDF filename">
 
-            <div id="dropZone" class="drop-zone">
-                <p>Drag & Drop PDF here or click to browse</p>
-                <input id="fileInput" type="file" accept=".pdf">
+                <label for="modelSelect">Extraction Model</label>
+                <input id="modelSelect" type="text" value="gpt-4.1-mini">
+
+                <label class="checkbox-row">
+                    <input id="romanizedToggle" type="checkbox" checked>
+                    Include romanized text
+                </label>
+
+                <div id="dropZone" class="drop-zone">
+                    <p>Drag & Drop PDF here or click to browse</p>
+                    <input id="fileInput" type="file" accept=".pdf">
+                </div>
+
+                <button id="syncButton" disabled>Upload & Sync</button>
             </div>
 
-            <button id="syncButton" disabled>Upload & Sync</button>
+            <section class="status-panel">
+                <h2>Status</h2>
+                <pre id="statusLogSync">Waiting for upload...</pre>
+            </section>
         </section>
 
-        <section class="status-panel">
-            <h2>Status</h2>
-            <pre id="statusLog">Waiting for upload...</pre>
+        <section id="tab-media" class="tab-panel">
+            <div class="card">
+                <h2>Generate Media for Existing Deck</h2>
+                <div class="deck-select-row">
+                    <label for="deckSelect">Select deck</label>
+                    <div class="deck-select-controls">
+                        <select id="deckSelect">
+                            <option value="">Loading decks...</option>
+                        </select>
+                        <button id="refreshDecks" class="secondary-button">Refresh</button>
+                    </div>
+                </div>
+
+                <div class="button-row">
+                    <button id="generateAudio" class="accent-button audio-button" disabled>Generate Audio</button>
+                    <button id="generateImages" class="accent-button image-button" disabled>Generate Images</button>
+                </div>
+            </div>
+
+            <section class="status-panel">
+                <h2>Media Generation Log</h2>
+                <pre id="statusLogMedia">Select a deck to begin.</pre>
+            </section>
         </section>
     </main>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
-
 </html>
