@@ -4,3 +4,6 @@
 *.jpeg
 *.pyc
 *.png
+media/audio/
+media/images/
+pdfs/

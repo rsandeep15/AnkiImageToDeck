@@ -1,8 +1,16 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
 from pathlib import Path
 from openai import OpenAI
 import sys
 
 from AnkiSync import invoke
+
+BASE_DIR = Path(__file__).resolve().parent
+MEDIA_DIR = BASE_DIR / "media"
+AUDIO_DIR = MEDIA_DIR / "audio"
+AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+MAX_WORKERS = max(1, int(os.environ.get("ANKI_AUDIO_WORKERS", "10")))
 
 def createAudioFile(client, text, fileName):
     """
@@ -25,7 +33,7 @@ def createAudioFile(client, text, fileName):
         input=text,
         instructions="Speak like a native speaker for the passed in language. Ignore anything in parenthesis",
     ) as response:
-        response.stream_to_file(Path(__file__).parent / fileName)
+        response.stream_to_file(AUDIO_DIR / fileName)
 
 
 def main():
@@ -36,21 +44,44 @@ def main():
     """
     deckname = sys.argv[1]
     cards = invoke("findNotes", query="deck:{deck_name}".format(deck_name=deckname))
-    client = OpenAI()
-    for cardID in cards:
-        try:
-            result = invoke("notesInfo", notes=[cardID])[0]
-            frontText = result['fields']['Front']['value']
-            backText = result['fields']['Back']['value']
-            # Skip cards that already have audio
-            if "[sound" not in frontText:
-                print("Adding audio for: " + frontText)
-                filename = str(cardID)+".mp3"
-                createAudioFile(client, frontText, filename)
-                path_to_file = Path(__file__).parent.as_posix() + "/" + filename
-                result = invoke("updateNoteFields", note={"id":cardID, "fields": {"Front":frontText, "Back":backText}, "audio": [{"filename":filename, "fields": ["Front"],"path":path_to_file}]})
-        except Exception as e:
-            print(e)
+
+    if not cards:
+        print("No cards found for deck:", deckname)
+        return
+
+    notes_info = invoke("notesInfo", notes=cards)
+
+    candidates = []
+    for cardID, note in zip(cards, notes_info):
+        frontText = note['fields']['Front']['value']
+        backText = note['fields']['Back']['value']
+        if "[sound" in frontText:
+            print("Skipping audio for (already has sound): " + frontText)
             continue
+        candidates.append((cardID, frontText, backText))
+
+    if not candidates:
+        print("No cards eligible for audio generation.")
+        return
+
+    def process_card(cardID, frontText, backText):
+        local_client = OpenAI()
+        try:
+            filename = str(cardID) + ".mp3"
+            createAudioFile(local_client, frontText, filename)
+            file_path = (AUDIO_DIR / filename).resolve()
+            invoke("updateNoteFields", note={"id":cardID, "fields": {"Front":frontText, "Back":backText}, "audio": [{"filename":filename, "fields": ["Front"],"path":file_path.as_posix()}]})
+            return ("added", frontText, None)
+        except Exception as exc:
+            return ("error", frontText, exc)
+
+    with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(candidates))) as executor:
+        futures = [executor.submit(process_card, *candidate) for candidate in candidates]
+        for future in as_completed(futures):
+            status, frontText, error = future.result()
+            if status == "added":
+                print("Adding audio for: " + frontText)
+            else:
+                print("Failed audio for: {text} ({err})".format(text=frontText, err=error))
 if __name__=="__main__":
     main()
