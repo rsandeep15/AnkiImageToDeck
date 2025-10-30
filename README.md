@@ -5,6 +5,7 @@ Streamline your language decks with a trio of OpenAI-powered helpers:
 - `AnkiSync.py` turns vocab PDFs into fully-populated Anki decks.
 - `AnkiDeckToSpeech.py` adds natural-sounding audio pronunciations.
 - `AnkiImageGen.py` decorates cards with visual mnemonics.
+- `app.py` (optional) launches a local Flask UI for drag-and-drop syncing.
 
 All scripts talk to a local AnkiConnect instance at `http://127.0.0.1:8765` and assume `OPENAI_API_KEY` is set in your shell.
 
@@ -16,10 +17,30 @@ All scripts talk to a local AnkiConnect instance at `http://127.0.0.1:8765` and 
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+
+# store secrets in .env so both CLI and Flask server can read them
+cat <<'EOF' > .env
+OPENAI_API_KEY=sk-...
+FLASK_APP=app.py
+EOF
+
+# (optional) export for current shell if you plan to run scripts directly
 export OPENAI_API_KEY=sk-...
+export FLASK_APP=app.py
 ```
 
 Make sure Anki is running with the AnkiConnect add-on enabled. Generated media files are stored under `media/audio`, `media/images`, and processed PDFs are archived to `pdfs/`.
+
+To launch the web UI, run `flask run` (or `python app.py`) after activating the virtualenv. The server will load credentials from `.env`.
+
+### Web UI quickstart
+
+```bash
+source .venv/bin/activate
+flask run  # or python app.py
+```
+
+Then open http://127.0.0.1:5000/ in your browser. Drag-and-drop a PDF, tweak the deck/model options, and click “Upload & Sync” to trigger `AnkiSync.py`.
 
 ---
 
@@ -115,5 +136,6 @@ Each run ends with a summary of added / skipped / failed image generations.
 - **Rate limits**: tune `--workers` (or env vars) to stay within your OpenAI quotas.
 - **AnkiConnect errors**: ensure Anki is open, add-on installed, and port accessible.
 - **Logging verbosity**: scripts print card-level status messages; redirect stdout if you prefer a quieter run.
+- **Web UI**: the Flask server uploads PDFs to `./uploads/` before invoking `AnkiSync.py`.
 
 Happy deck building! Feel free to mix and match scripts—import the vocab with `AnkiSync.py`, then layer on audio and images whenever you’re ready.
