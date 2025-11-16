@@ -8,7 +8,7 @@ httpcore==1.0.9
 httpx==0.28.1
 idna==3.10
 jiter==0.10.0
-openai==1.84.0
+openai==2.8.0
 pycurl==7.45.6
 pydantic==2.11.5
 pydantic_core==2.33.2
