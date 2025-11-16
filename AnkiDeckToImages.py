@@ -17,6 +17,8 @@ IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 DEFAULT_MAX_WORKERS = 3
 HTML_TAG_RE = re.compile(r"<[^>]+>")
 IMG_TAG_RE = re.compile(r"<img[^>]*?>", re.IGNORECASE)
+GATING_PROMPT_ID = "pmpt_69194beaad7c819497842682bad97629040fc2c239b73233"
+GATING_PROMPT_VERSION = "4"
 
 
 def parse_args() -> argparse.Namespace:
@@ -28,11 +30,6 @@ def parse_args() -> argparse.Namespace:
         "--image-model",
         default="gpt-image-1",
         help="Image generation model to use (default: %(default)s).",
-    )
-    parser.add_argument(
-        "--gating-model",
-        default="gpt-4.1",
-        help="Model used to decide whether an image is helpful (default: %(default)s).",
     )
     parser.add_argument(
         "--prompt",
@@ -129,19 +126,17 @@ def should_generate_image(
     client: OpenAI,
     front_text: str,
     back_text: str,
-    *,
-    model: str,
 ) -> bool:
-    gating_prompt = (
-        "Given this flashcard pair, decide if a visual aid would help memorization.\n"
-        f"Front: {front_text}\n"
-        f"Back: {back_text}\n"
-        "Reply strictly with true or false in lowercase. Use true for concrete nouns or phrases "
-        "where imagery aids recall. Use false if an image would be redundant or misleading."
-    )
+    prompt_payload = {
+        "id": GATING_PROMPT_ID,
+        "version": GATING_PROMPT_VERSION,
+        "variables": {
+            "front": front_text,
+            "back": back_text,
+        },
+    }
     response = client.responses.create(
-        model=model,
-        input=gating_prompt,
+        prompt=prompt_payload,
     )
     decision = get_response_text(response).strip().lower()
     return decision == "true"
@@ -151,7 +146,6 @@ def process_card(
     card: Tuple[int, str, str],
     api_key: str,
     image_model: str,
-    gating_model: str,
     prompt_template: str,
     skip_gating: bool,
 ) -> Tuple[str, str, Any]:
@@ -170,7 +164,6 @@ def process_card(
                 local_client,
                 cleaned_front or front_without_images,
                 cleaned_back,
-                model=gating_model,
             ):
                 if (
                     front_without_images != front_text
@@ -233,7 +226,7 @@ def main() -> None:
     prompt_template = args.prompt.strip()
     print(
         f"Generating images with up to {max_workers} worker(s) using image model {args.image_model} "
-        f"and gating model {args.gating_model if not args.skip_gating else 'skipped'}."
+        f"and {'skipping' if args.skip_gating else 'using prompt-configured'} gating."
     )
 
     added = skipped = failed = 0
@@ -244,7 +237,6 @@ def main() -> None:
                 card,
                 api_key,
                 args.image_model,
-                args.gating_model,
                 prompt_template,
                 args.skip_gating,
             )

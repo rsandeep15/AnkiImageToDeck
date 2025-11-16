@@ -113,8 +113,8 @@ Text is sanitized before synthesis (HTML stripped, whitespace collapsed). The sc
 
 **What it does**
 
-- retrieves deck notes and skips those already containing `<img`
-- (optional) runs a gating model to decide whether an image is helpful
+- retrieves deck notes and replaces any existing `<img>` tags with regenerated art
+- (optional) runs a prompt-configured gating check to decide whether an image is helpful
 - generates PNGs in `media/images/` using the configured image model
 - attaches the image to the front field via AnkiConnect
 
@@ -123,7 +123,6 @@ Text is sanitized before synthesis (HTML stripped, whitespace collapsed). The sc
 ```bash
 python AnkiImageGen.py "Korean Deck" \
   --image-model gpt-image-1 \
-  --gating-model gpt-4.1 \
   --prompt "Generate a mnemonic illustration for: {text}" \
   --workers 3
 ```
@@ -131,10 +130,9 @@ python AnkiImageGen.py "Korean Deck" \
 Key flags:
 
 - `--image-model`: OpenAI image endpoint to call
-- `--gating-model`: text model that returns `true` / `false` (set `--skip-gating` to bypass)
 - `--prompt`: templated string where `{text}` is replaced with the card back
 - `--workers`: concurrency level (defaults to `ANKI_IMAGE_WORKERS` env var or 3)
-- `--skip-gating`: generate for every card, regardless of the gating check
+- `--skip-gating`: generate for every card, bypassing the saved gating prompt
 
 Each run ends with a summary of added / skipped / failed image generations.
 

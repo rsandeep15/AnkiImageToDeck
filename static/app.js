@@ -15,7 +15,6 @@ const statusLogAudio = document.getElementById("statusLogAudio");
 
 const imageDeckSelect = document.getElementById("imageDeckSelect");
 const imageModelSelect = document.getElementById("imageModelSelect");
-const gatingModelSelect = document.getElementById("gatingModelSelect");
 const skipGatingToggle = document.getElementById("skipGatingToggle");
 const refreshDecksImages = document.getElementById("refreshDecksImages");
 const imageWorkerSelect = document.getElementById("imageWorkerSelect");
@@ -219,11 +218,8 @@ function updateAudioControls() {
 function updateImageControls() {
     const hasDeck = Boolean(imageDeckSelect?.value);
     const hasImageModel = Boolean(imageModelSelect?.value);
-    const gatingRequired = !skipGatingToggle.checked;
-    gatingModelSelect.disabled = !gatingRequired;
-    const hasGatingModel = gatingRequired ? Boolean(gatingModelSelect?.value) : true;
     const hasWorkers = Boolean(imageWorkerSelect?.value);
-    generateImagesButton.disabled = !(hasDeck && hasImageModel && hasGatingModel && hasWorkers);
+    generateImagesButton.disabled = !(hasDeck && hasImageModel && hasWorkers);
 }
 
 syncButton.addEventListener("click", async () => {
@@ -321,16 +317,11 @@ generateAudioButton.addEventListener("click", generateAudio);
 async function generateImages() {
     const deck = imageDeckSelect.value;
     const imageModel = imageModelSelect.value;
-    const gatingModel = gatingModelSelect.value;
     const skipGating = skipGatingToggle.checked;
     const workers = imageWorkerSelect.value;
 
     if (!deck || !imageModel) {
         setStatus(statusLogImages, "Please select a deck and image model.");
-        return;
-    }
-    if (!skipGating && !gatingModel) {
-        setStatus(statusLogImages, "Select a gating model or enable skip gating.");
         return;
     }
     if (!workers) {
@@ -348,9 +339,6 @@ async function generateImages() {
         skip_gating: skipGating,
         workers: Number(workers),
     };
-    if (!skipGating && gatingModel) {
-        payload.gating_model = gatingModel;
-    }
 
     try {
         const response = await fetch("/generate/images", {
@@ -391,7 +379,6 @@ audioWorkerSelect.addEventListener("change", updateAudioControls);
 
 imageDeckSelect.addEventListener("change", updateImageControls);
 imageModelSelect.addEventListener("change", updateImageControls);
-gatingModelSelect.addEventListener("change", updateImageControls);
 skipGatingToggle.addEventListener("change", updateImageControls);
 imageWorkerSelect.addEventListener("change", updateImageControls);
 
@@ -399,7 +386,6 @@ loadDecks();
 loadModels("text", textModelSelect, "gpt-4.1-mini", statusLogSync, updateSyncButton);
 loadModels("audio", audioModelSelect, "gpt-4o-mini-tts", statusLogAudio, updateAudioControls);
 loadModels("image", imageModelSelect, "gpt-image-1", statusLogImages, updateImageControls);
-loadModels("text", gatingModelSelect, "gpt-4.1", statusLogImages, updateImageControls);
 
 textModelSelect.addEventListener("change", updateSyncButton);
 updateSyncButton();

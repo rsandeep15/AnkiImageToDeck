@@ -255,15 +255,12 @@ def generate_images():
 
     args = [deck]
     image_model = data.get("image_model")
-    gating_model = data.get("gating_model")
     prompt = data.get("prompt")
     workers = data.get("workers")
     skip_gating = data.get("skip_gating", False)
 
     if image_model:
         args.extend(["--image-model", image_model])
-    if gating_model:
-        args.extend(["--gating-model", gating_model])
     if prompt:
         args.extend(["--prompt", prompt])
     if workers:

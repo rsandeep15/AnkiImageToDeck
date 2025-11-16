@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import AnkiDeckToImages as images
 
@@ -29,7 +29,6 @@ class TestAnkiDeckToImages(unittest.TestCase):
             card=(1, front, back),
             api_key="test",
             image_model="gpt-image-1",
-            gating_model="gpt-4.1-mini",
             prompt_template="{text}",
             skip_gating=False,
         )
@@ -59,7 +58,6 @@ class TestAnkiDeckToImages(unittest.TestCase):
             card=(99, "안녕", "hello"),
             api_key="test",
             image_model="gpt-image-1",
-            gating_model="gpt-4.1-mini",
             prompt_template="{text}",
             skip_gating=False,
         )
