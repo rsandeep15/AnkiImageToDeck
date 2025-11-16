@@ -3,20 +3,19 @@ import base64
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 from pathlib import Path
-import re
 from typing import Any, List, Tuple
 
 from openai import OpenAI
 
 from AnkiSync import invoke
-
-BASE_DIR = Path(__file__).resolve().parent
-MEDIA_DIR = BASE_DIR / "media"
-IMAGE_DIR = MEDIA_DIR / "images"
+from utils.common import (
+    BASE_DIR,
+    IMAGE_DIR,
+    HTML_TAG_RE,
+    IMG_TAG_RE,
+)
 IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 DEFAULT_MAX_WORKERS = 3
-HTML_TAG_RE = re.compile(r"<[^>]+>")
-IMG_TAG_RE = re.compile(r"<img[^>]*?>", re.IGNORECASE)
 GATING_PROMPT_ID = "pmpt_69194beaad7c819497842682bad97629040fc2c239b73233"
 GATING_PROMPT_VERSION = "4"
 

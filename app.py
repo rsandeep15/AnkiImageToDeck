@@ -1,5 +1,4 @@
 import os
-import re
 import subprocess
 import sys
 from functools import lru_cache
@@ -12,14 +11,10 @@ from werkzeug.utils import secure_filename
 
 from openai import OpenAI
 from AnkiSync import invoke
+from utils.common import BASE_DIR, IMAGE_DIR, MEDIA_DIR, HTML_TAG_RE, IMG_SRC_RE
 
-BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
-MEDIA_DIR = BASE_DIR / "media"
-IMAGE_DIR = MEDIA_DIR / "images"
-HTML_TAG_RE = re.compile(r"<[^>]+>")
-IMG_SRC_RE = re.compile(r'<img[^>]+src=["\']([^"\'>]+)["\']', re.IGNORECASE)
 
 ALLOWED_EXTENSIONS = {".pdf"}
 
