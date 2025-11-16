@@ -21,6 +21,12 @@ const imageWorkerSelect = document.getElementById("imageWorkerSelect");
 const generateImagesButton = document.getElementById("generateImages");
 const statusLogImages = document.getElementById("statusLogImages");
 
+const galleryDeckSelect = document.getElementById("galleryDeckSelect");
+const refreshDecksGallery = document.getElementById("refreshDecksGallery");
+const loadGalleryButton = document.getElementById("loadGallery");
+const statusLogGallery = document.getElementById("statusLogGallery");
+const galleryGrid = document.getElementById("galleryGrid");
+
 const tabButtons = document.querySelectorAll(".tab-button");
 const tabPanels = document.querySelectorAll(".tab-panel");
 
@@ -165,7 +171,7 @@ function populateDeckSelect(select, decks) {
 }
 
 async function loadDecks() {
-    const selects = [audioDeckSelect, imageDeckSelect];
+    const selects = [audioDeckSelect, imageDeckSelect, galleryDeckSelect];
     selects.forEach((select) => {
         if (select) {
             select.innerHTML = '<option value="">Loading decks...</option>';
@@ -174,6 +180,7 @@ async function loadDecks() {
     });
     setStatus(statusLogAudio, "Fetching decks...");
     setStatus(statusLogImages, "Fetching decks...");
+    setStatus(statusLogGallery, "Fetching decks...");
     try {
         const response = await fetch("/api/decks");
         const data = await response.json();
@@ -181,6 +188,7 @@ async function loadDecks() {
             selects.forEach((select) => populateDeckSelect(select, data.decks));
             setStatus(statusLogAudio, "Select a deck and model to begin.");
             setStatus(statusLogImages, "Select a deck and model to begin.");
+            setStatus(statusLogGallery, "Select a deck to view images.");
         } else {
             const message = data.message || "No decks found.";
             selects.forEach((select) => {
@@ -190,6 +198,7 @@ async function loadDecks() {
             });
             setStatus(statusLogAudio, message);
             setStatus(statusLogImages, message);
+            setStatus(statusLogGallery, message);
         }
     } catch (error) {
         selects.forEach((select) => {
@@ -199,12 +208,14 @@ async function loadDecks() {
         });
         setStatus(statusLogAudio, `❌ Failed to fetch decks: ${error}`);
         setStatus(statusLogImages, `❌ Failed to fetch decks: ${error}`);
+        setStatus(statusLogGallery, `❌ Failed to fetch decks: ${error}`);
     } finally {
         selects.forEach((select) => {
             if (select) select.disabled = false;
         });
         updateAudioControls();
         updateImageControls();
+        updateGalleryControls();
     }
 }
 
@@ -220,6 +231,11 @@ function updateImageControls() {
     const hasImageModel = Boolean(imageModelSelect?.value);
     const hasWorkers = Boolean(imageWorkerSelect?.value);
     generateImagesButton.disabled = !(hasDeck && hasImageModel && hasWorkers);
+}
+
+function updateGalleryControls() {
+    if (!loadGalleryButton) return;
+    loadGalleryButton.disabled = !Boolean(galleryDeckSelect?.value);
 }
 
 syncButton.addEventListener("click", async () => {
@@ -372,6 +388,7 @@ generateImagesButton.addEventListener("click", generateImages);
 
 refreshDecksAudio.addEventListener("click", loadDecks);
 refreshDecksImages.addEventListener("click", loadDecks);
+refreshDecksGallery.addEventListener("click", loadDecks);
 
 audioDeckSelect.addEventListener("change", updateAudioControls);
 audioModelSelect.addEventListener("change", updateAudioControls);
@@ -382,6 +399,65 @@ imageModelSelect.addEventListener("change", updateImageControls);
 skipGatingToggle.addEventListener("change", updateImageControls);
 imageWorkerSelect.addEventListener("change", updateImageControls);
 
+galleryDeckSelect.addEventListener("change", () => {
+    updateGalleryControls();
+    if (galleryDeckSelect.value) {
+        loadGallery();
+    } else if (galleryGrid) {
+        galleryGrid.classList.add("empty");
+        galleryGrid.innerHTML = "<p>No deck selected.</p>";
+    }
+});
+
+loadGalleryButton.addEventListener("click", loadGallery);
+
+function renderGallery(items) {
+    if (!galleryGrid) return;
+    if (!items.length) {
+        galleryGrid.classList.add("empty");
+        galleryGrid.innerHTML = "<p>No generated images found for this deck.</p>";
+        return;
+    }
+    galleryGrid.classList.remove("empty");
+    galleryGrid.innerHTML = items
+        .map(
+            (item) => `
+            <div class="image-card">
+                <img src="${item.image_url}" alt="${item.english}" loading="lazy" />
+                <div class="caption">${item.english || "(No English text)"}</div>
+            </div>`
+        )
+        .join("");
+}
+
+async function loadGallery() {
+    const deck = galleryDeckSelect?.value;
+    if (!deck) {
+        setStatus(statusLogGallery, "Select a deck to view images.");
+        return;
+    }
+    setStatus(statusLogGallery, `Loading images for "${deck}"...`);
+    try {
+        const response = await fetch(`/api/deck-images?deck=${encodeURIComponent(deck)}`);
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+            throw new Error(data.message || "Failed to fetch deck images.");
+        }
+        renderGallery(data.images || []);
+        if ((data.images || []).length) {
+            setStatus(statusLogGallery, `Showing ${data.images.length} image(s) for "${deck}".`);
+        } else {
+            setStatus(statusLogGallery, `No generated images found for "${deck}".`);
+        }
+    } catch (error) {
+        setStatus(statusLogGallery, `❌ Failed to load images: ${error}`);
+        if (galleryGrid) {
+            galleryGrid.classList.add("empty");
+            galleryGrid.innerHTML = "<p>Unable to load images.</p>";
+        }
+    }
+}
+
 loadDecks();
 loadModels("text", textModelSelect, "gpt-4.1-mini", statusLogSync, updateSyncButton);
 loadModels("audio", audioModelSelect, "gpt-4o-mini-tts", statusLogAudio, updateAudioControls);
@@ -391,3 +467,4 @@ textModelSelect.addEventListener("change", updateSyncButton);
 updateSyncButton();
 updateAudioControls();
 updateImageControls();
+updateGalleryControls();

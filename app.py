@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import sys
 from functools import lru_cache
@@ -6,7 +7,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_from_directory, url_for
 from werkzeug.utils import secure_filename
 
 from openai import OpenAI
@@ -15,6 +16,10 @@ from AnkiSync import invoke
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
+MEDIA_DIR = BASE_DIR / "media"
+IMAGE_DIR = MEDIA_DIR / "images"
+HTML_TAG_RE = re.compile(r"<[^>]+>")
+IMG_SRC_RE = re.compile(r'<img[^>]+src=["\']([^"\'>]+)["\']', re.IGNORECASE)
 
 ALLOWED_EXTENSIONS = {".pdf"}
 
@@ -106,6 +111,49 @@ def list_models(kind: str):
         return jsonify({"ok": False, "message": str(exc)}), 500
 
 
+@app.route("/api/deck-images", methods=["GET"])
+def deck_images():
+    deck = request.args.get("deck", "").strip()
+    if not deck:
+        return jsonify({"ok": False, "message": "Deck parameter is required."}), 400
+
+    try:
+        note_ids = invoke("findNotes", query=f'deck:"{deck}"')
+        if not note_ids:
+            return jsonify({"ok": True, "images": []})
+        notes = invoke("notesInfo", notes=note_ids)
+        results = []
+        for note_id, note in zip(note_ids, notes):
+            front = note["fields"]["Front"]["value"]
+            back = note["fields"]["Back"]["value"]
+            filename = extract_image_filename(front) or extract_image_filename(back)
+            if not filename:
+                continue
+            local_path = IMAGE_DIR / filename
+            if not local_path.exists():
+                stem, suffix = os.path.splitext(filename)
+                if "-" in stem:
+                    base = stem.split("-", 1)[0] + suffix
+                    alt_path = IMAGE_DIR / base
+                    if alt_path.exists():
+                        local_path = alt_path
+                    else:
+                        continue
+                else:
+                    continue
+            results.append(
+                {
+                    "card_id": note_id,
+                    "english": clean_field_text(back),
+                    "korean": clean_field_text(front),
+                    "image_url": url_for("serve_image_file", filename=local_path.name),
+                }
+            )
+        return jsonify({"ok": True, "images": results})
+    except Exception as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 500
+
+
 def estimate_sync_duration(card_count: int) -> Tuple[int, str]:
     if card_count <= 0:
         return 30, "About 30 seconds"
@@ -132,6 +180,19 @@ def get_deck_card_count(deckname: str) -> int:
         return len(cards)
     except Exception:
         return 0
+
+
+def clean_field_text(raw: str) -> str:
+    raw = raw or ""
+    without_tags = HTML_TAG_RE.sub(" ", raw)
+    return " ".join(without_tags.split())
+
+
+def extract_image_filename(html: str) -> str:
+    match = IMG_SRC_RE.search(html or "")
+    if match:
+        return Path(match.group(1)).name
+    return ""
 
 
 @app.route("/sync", methods=["POST"])
@@ -297,6 +358,14 @@ def generate_images():
         )
     except RuntimeError as exc:
         return jsonify({"ok": False, "message": str(exc)}), 500
+
+
+@app.route("/media/images/<path:filename>")
+def serve_image_file(filename: str):
+    target = IMAGE_DIR / filename
+    if not target.exists():
+        return jsonify({"ok": False, "message": "Image not found."}), 404
+    return send_from_directory(IMAGE_DIR, filename)
 
 
 if __name__ == "__main__":

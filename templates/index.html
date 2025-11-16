@@ -14,6 +14,7 @@
             <button class="tab-button active" data-tab="sync">PDF ➜ Deck</button>
             <button class="tab-button" data-tab="audio">Deck Audio</button>
             <button class="tab-button" data-tab="images">Deck Images</button>
+            <button class="tab-button" data-tab="gallery">Image Gallery</button>
         </nav>
 
         <section id="tab-sync" class="tab-panel active">
@@ -117,6 +118,28 @@
             <section class="status-panel">
                 <h2>Image Generation Log</h2>
                 <pre id="statusLogImages">Select a deck to begin.</pre>
+            </section>
+        </section>
+
+        <section id="tab-gallery" class="tab-panel">
+            <div class="card">
+                <h2>Browse Deck Images</h2>
+                <label for="galleryDeckSelect">Deck</label>
+                <div class="deck-select-controls">
+                    <select id="galleryDeckSelect">
+                        <option value="">Loading decks...</option>
+                    </select>
+                    <button id="refreshDecksGallery" class="secondary-button">Refresh</button>
+                </div>
+                <button id="loadGallery" class="accent-button" disabled>Load Gallery</button>
+            </div>
+
+            <section class="status-panel">
+                <h2>Deck Gallery</h2>
+                <p id="statusLogGallery">Select a deck to view generated images.</p>
+                <div id="galleryGrid" class="image-grid empty">
+                    <p>No deck selected.</p>
+                </div>
             </section>
         </section>
     </main>
