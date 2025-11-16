@@ -16,6 +16,7 @@ IMAGE_DIR = MEDIA_DIR / "images"
 IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 DEFAULT_MAX_WORKERS = 3
 HTML_TAG_RE = re.compile(r"<[^>]+>")
+IMG_TAG_RE = re.compile(r"<img[^>]*?>", re.IGNORECASE)
 
 
 def parse_args() -> argparse.Namespace:
@@ -71,9 +72,6 @@ def get_candidate_cards(deckname: str) -> List[Tuple[int, str, str]]:
     for card_id, note in zip(cards, notes_info):
         front_text = note["fields"]["Front"]["value"]
         back_text = note["fields"]["Back"]["value"]
-        if "<img" in front_text:
-            print(f"Skipping image for (already has image): {back_text}")
-            continue
         candidates.append((card_id, front_text, back_text))
     return candidates
 
@@ -82,6 +80,11 @@ def sanitize_text(text: str) -> str:
     """Strip HTML tags and collapse whitespace for cleaner prompts."""
     without_tags = HTML_TAG_RE.sub(" ", text)
     return " ".join(without_tags.split())
+
+
+def strip_image_tags(text: str) -> str:
+    """Remove any <img> tags so we can replace or delete them cleanly."""
+    return IMG_TAG_RE.sub("", text)
 
 
 def build_image_prompt(template: str, concept: str) -> str:
@@ -126,18 +129,20 @@ def should_generate_image(
     client: OpenAI,
     front_text: str,
     back_text: str,
+    *,
     model: str,
 ) -> bool:
+    gating_prompt = (
+        "Given this flashcard pair, decide if a visual aid would help memorization.\n"
+        f"Front: {front_text}\n"
+        f"Back: {back_text}\n"
+        "Reply strictly with true or false in lowercase. Use true for concrete nouns or phrases "
+        "where imagery aids recall. Use false if an image would be redundant or misleading."
+    )
     response = client.responses.create(
         model=model,
-        prompt={
-            "id": "pmpt_69194beaad7c819497842682bad97629040fc2c239b73233",
-            "version": "3",
-            "variables": {
-                "front": front_text,
-                "back": back_text
-        }
-    })
+        input=gating_prompt,
+    )
     decision = get_response_text(response).strip().lower()
     return decision == "true"
 
@@ -152,20 +157,41 @@ def process_card(
 ) -> Tuple[str, str, Any]:
     card_id, front_text, back_text = card
     local_client = OpenAI(api_key=api_key)
-    cleaned_back = sanitize_text(back_text)
+    front_without_images = strip_image_tags(front_text)
+    back_without_images = strip_image_tags(back_text)
+    cleaned_back = sanitize_text(back_without_images)
     if not cleaned_back:
-        return ("skip", back_text, "No descriptive text after cleaning.")
+        return ("skip", back_without_images, "No descriptive text after cleaning.")
 
     try:
         if not skip_gating:
-            cleaned_front = sanitize_text(front_text)
+            cleaned_front = sanitize_text(front_without_images)
             if not should_generate_image(
                 local_client,
-                cleaned_front or front_text,
+                cleaned_front or front_without_images,
                 cleaned_back,
                 model=gating_model,
             ):
-                return ("skip", back_text, "Gating model returned false.")
+                if (
+                    front_without_images != front_text
+                    or back_without_images != back_text
+                ):
+                    invoke(
+                        "updateNoteFields",
+                        note={
+                            "id": card_id,
+                            "fields": {
+                                "Front": front_without_images,
+                                "Back": back_without_images,
+                            },
+                        },
+                    )
+                    return (
+                        "skip",
+                        back_without_images,
+                        "Gating model returned false; existing image removed.",
+                    )
+                return ("skip", back_without_images, "Gating model returned false.")
 
         filename = f"{card_id}.png"
         prompt = build_image_prompt(prompt_template, cleaned_back)
@@ -174,7 +200,10 @@ def process_card(
             "updateNoteFields",
             note={
                 "id": card_id,
-                "fields": {"Front": front_text, "Back": back_text},
+                "fields": {
+                    "Front": front_without_images,
+                    "Back": back_without_images,
+                },
                 "picture": [
                     {
                         "filename": filename,
