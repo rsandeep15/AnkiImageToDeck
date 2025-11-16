@@ -126,20 +126,18 @@ def should_generate_image(
     client: OpenAI,
     front_text: str,
     back_text: str,
-    *,
     model: str,
 ) -> bool:
-    gating_prompt = (
-        "Given this flashcard pair, decide if a visual aid would help memorization.\n"
-        f"Front: {front_text}\n"
-        f"Back: {back_text}\n"
-        "Reply strictly with true or false in lowercase. Use true for concrete nouns or phrases "
-        "where imagery aids recall. Use false if an image would be redundant or misleading."
-    )
     response = client.responses.create(
         model=model,
-        input=gating_prompt,
-    )
+        prompt={
+            "id": "pmpt_69194beaad7c819497842682bad97629040fc2c239b73233",
+            "version": "3",
+            "variables": {
+                "front": front_text,
+                "back": back_text
+        }
+    })
     decision = get_response_text(response).strip().lower()
     return decision == "true"
 
